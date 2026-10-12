@@ -2,6 +2,7 @@ from extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 from datetime import datetime
+from encryption import encrypt_data, decrypt_data # Добавь этот импорт в начало файла
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -10,8 +11,21 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='student')
-    phone = db.Column(db.String(20))  # TODO: шифрование на Этапе 3
+    
+    
+    _phone = db.Column('phone', db.String(256)) 
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    
+    @property
+    def phone(self):
+        return decrypt_data(self._phone)
+
+    
+    @phone.setter
+    def phone(self, value):
+        self._phone = encrypt_data(value)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -46,5 +60,5 @@ class Review(db.Model):
     lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     rating = db.Column(db.Integer, nullable=False)
-    comment = db.Column(db.Text)  # TODO: защита от XSS на Этапе 3
+    comment = db.Column(db.Text)  
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
