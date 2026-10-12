@@ -17,10 +17,22 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="#">Преподаватели</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Отзывы</a></li>
-                    <li class="nav-item"><a class="nav-link btn btn-light text-primary ms-2" href="#">Войти</a></li>
+                <ul class="navbar-nav ms-auto align-items-center">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item">
+                            <span class="nav-link text-light">Привет, {{ current_user.email }}</span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link btn btn-outline-light btn-sm ms-2" href="{{ url_for('logout') }}">Выйти</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('login') }}">Войти</a>
+                        </li>
+                        <li class="nav-item ms-2">
+                            <a class="nav-link btn btn-light text-primary btn-sm" href="{{ url_for('register') }}">Регистрация</a>
+                        </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>
@@ -30,11 +42,20 @@
     <main class="container mt-4">
         {% block content %}{% endblock %}
     </main>
-
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
     <!-- Футер -->
     <footer class="bg-light text-center text-lg-start mt-5 py-3">
         <div class="container">
-            <p class="text-muted mb-0">&copy; 2023 TutorPlatform. Курсовая работа по ИБ.</p>
+            <p class="text-muted mb-0">&copy; 2026 TutorPlatform. Курсовая работа по ИБ.</p>
         </div>
     </footer>
 
