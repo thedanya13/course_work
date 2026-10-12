@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Преподаватели - TutorPlatform{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Наши преподаватели</h2>
+    <span class="badge bg-primary fs-6">Найдено: {{ tutors|length }}</span>
+</div>
+
+<div class="row g-4">
+    {% for user, profile in tutors %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title text-primary mb-0">{{ profile.subject }}</h5>
+                    <span class="badge bg-success">{{ profile.hourly_rate }} ₽/час</span>
+                </div>
+                <p class="text-muted small mb-2">{{ user.email }}</p>
+                <p class="card-text">{{ profile.bio[:80] }}...</p>
+            </div>
+            <div class="card-footer bg-white border-0">
+                <button class="btn btn-outline-primary w-100">Записаться на урок</button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
