@@ -9,13 +9,13 @@ fake = Faker('ru_RU')
 
 def seed_database():
     with app.app_context():
-        # Очищаем базу (на всякий случай)
+        
         db.drop_all()
         db.create_all()
         
         print("🌱 Начинаем генерацию данных...")
         
-        # Создаем 100 пользователей
+        
         users = []
         for i in range(100):
             user = User(
@@ -30,7 +30,7 @@ def seed_database():
         db.session.commit()
         print(f"✅ Создано {len(users)} пользователей")
         
-        # Создаем профили для репетиторов
+        
         tutors = [u for u in users if u.role == 'tutor']
         subjects = ['Математика', 'Физика', 'Английский', 'Русский', 'Информатика', 'Химия']
         
@@ -48,7 +48,7 @@ def seed_database():
         db.session.commit()
         print(f"✅ Создано {len(tutor_profiles)} профилей репетиторов")
         
-        # Создаем 5000 уроков
+        
         lessons = []
         students = [u for u in users if u.role == 'student']
         
@@ -66,7 +66,7 @@ def seed_database():
         db.session.commit()
         print(f"✅ Создано {len(lessons)} уроков")
         
-        # Создаем 2000 отзывов
+        
         reviews = []
         completed_lessons = [l for l in lessons if l.status == 'completed']
         
