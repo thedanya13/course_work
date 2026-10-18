@@ -3,7 +3,7 @@ import bleach
 from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
-from extensions import db
+from extensions import db, csrf
 import models
 from models import User, TutorProfile, Lesson, Review, Chat, ChatMessage, Payment
 from forms import (
@@ -15,6 +15,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 db.init_app(app)
+csrf.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -84,10 +85,11 @@ def profile():
     user_profile = TutorProfile.query.filter_by(user_id=current_user.id).first()
     if request.method == 'POST':
         new_bio = request.form.get('bio', '')
+        safe_bio = bleach.clean(new_bio, tags=[], strip=True)
         if user_profile:
-            user_profile.bio = new_bio
+            user_profile.bio = safe_bio
         else:
-            user_profile = TutorProfile(user_id=current_user.id, subject='Не указан', hourly_rate=0, bio=new_bio)
+            user_profile = TutorProfile(user_id=current_user.id, subject='Не указан', hourly_rate=0, bio=safe_bio)
             db.session.add(user_profile)
         db.session.commit()
         flash('Биография обновлена', 'success')

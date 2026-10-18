@@ -14,10 +14,10 @@
     </div>
 </div>
 
-<!-- Защита от XSS: пояснение для читающего код -->
-<!-- Сообщения сохраняются в БД уже очищенными через bleach.clean().
-     В шаблоне используется {{ msg.content }} (автоэкранирование Jinja2).
-     Двойная защита: серверная (bleach) + шаблонная (Jinja2 escape). -->
+{# Защита от XSS:
+   Сообщения сохраняются в БД уже очищенными через bleach.clean().
+   В шаблоне используется msg.content (автоэкранирование Jinja2).
+   Двойная защита: серверная (bleach) + шаблонная (Jinja2 escape). #}
 
 <div class="card shadow-sm" style="height: 480px; display: flex; flex-direction: column;">
     <div class="card-header bg-primary text-white">
