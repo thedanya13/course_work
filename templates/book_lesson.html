@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Запись на урок - TutorPlatform{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4"><i class="bi bi-calendar-plus"></i> Запись на урок</h2>
+
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                <h5 class="mb-1">Преподаватель: {{ tutor.email }}</h5>
+                {% if tutor.profile %}
+                    <span class="badge bg-primary">{{ tutor.profile.subject }}</span>
+                    <span class="badge bg-success ms-1">{{ tutor.profile.hourly_rate }} ₽/час</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">{{ form.lesson_date.label }}</label>
+                        {{ form.lesson_date(class="form-control") }}
+                        {% for error in form.lesson_date.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </form>
+            </div>
+        </div>
+        <a href="{{ url_for('tutors') }}" class="btn btn-link mt-2">← Назад к поиску</a>
+    </div>
+</div>
+{% endblock %}

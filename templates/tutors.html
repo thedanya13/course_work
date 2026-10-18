@@ -3,28 +3,75 @@
 {% block title %}Преподаватели - TutorPlatform{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Наши преподаватели</h2>
+<h2 class="mb-4">🔍 Поиск преподавателей</h2>
+
+<!-- Форма поиска -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" action="{{ url_for('tutors') }}" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Предмет</label>
+                <input type="text" name="subject" class="form-control"
+                       placeholder="Математика, Python, Английский..."
+                       value="{{ subject }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Макс. цена (₽/час)</label>
+                <input type="number" name="max_price" class="form-control"
+                       placeholder="Любая" value="{{ max_price }}" min="0">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Найти
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Результаты</h5>
     <span class="badge bg-primary fs-6">Найдено: {{ tutors|length }}</span>
 </div>
 
+{% if tutors %}
 <div class="row g-4">
     {% for user, profile in tutors %}
     <div class="col-md-6 col-lg-4">
         <div class="card h-100 shadow-sm border-0">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h5 class="card-title text-primary mb-0">{{ profile.subject }}</h5>
+                    <h5 class="card-title text-primary mb-0">
+                        <i class="bi bi-person-workspace"></i> {{ profile.subject }}
+                    </h5>
                     <span class="badge bg-success">{{ profile.hourly_rate }} ₽/час</span>
                 </div>
                 <p class="text-muted small mb-2">{{ user.email }}</p>
-                <p class="card-text">{{ profile.bio[:80] }}...</p>
+                <p class="card-text">{{ (profile.bio or 'Нет описания')[:100] }}{% if profile.bio and profile.bio|length > 100 %}...{% endif %}</p>
             </div>
-            <div class="card-footer bg-white border-0">
-                <button class="btn btn-outline-primary w-100">Записаться на урок</button>
+            <div class="card-footer bg-white border-0 d-flex gap-2">
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('book_lesson', tutor_id=user.id) }}"
+                       class="btn btn-primary btn-sm flex-fill">
+                        <i class="bi bi-calendar-plus"></i> Записаться
+                    </a>
+                    <a href="{{ url_for('reviews', tutor_id=user.id) }}"
+                       class="btn btn-outline-secondary btn-sm flex-fill">
+                        <i class="bi bi-star"></i> Отзывы
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-sm w-100">
+                        Войдите, чтобы записаться
+                    </a>
+                {% endif %}
             </div>
         </div>
     </div>
     {% endfor %}
 </div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> По вашему запросу преподаватели не найдены. Попробуйте изменить фильтры.
+</div>
+{% endif %}
 {% endblock %}

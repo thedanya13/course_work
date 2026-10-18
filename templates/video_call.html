@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Видеозвонок - TutorPlatform{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-camera-video-fill text-success"></i> Видеоурок</h2>
+    <a href="{{ url_for('calendar') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Назад к урокам
+    </a>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    Комната: <strong>{{ room }}</strong> —
+    только участники урока могут попасть на эту страницу.
+</div>
+
+<!-- Jitsi Meet iframe -->
+<!-- Jitsi Meet — открытая платформа видеосвязи, не требует регистрации -->
+<div class="ratio ratio-16x9 shadow rounded">
+    <iframe
+        src="https://meet.jit.si/{{ room }}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false"
+        allow="camera; microphone; fullscreen; display-capture; autoplay"
+        style="border: none; border-radius: 0.5rem;"
+    ></iframe>
+</div>
+
+<div class="mt-3 d-flex gap-2">
+    <a href="{{ url_for('chat', lesson_id=lesson.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-chat-dots"></i> Открыть чат
+    </a>
+    {% if current_user.role == 'student' and lesson.status == 'scheduled' %}
+    <a href="{{ url_for('pay_lesson', lesson_id=lesson.id) }}" class="btn btn-warning">
+        <i class="bi bi-credit-card"></i> Оплатить урок
+    </a>
+    {% endif %}
+</div>
+{% endblock %}
