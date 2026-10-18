@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Оплата урока - TutorPlatform{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4"><i class="bi bi-shield-lock-fill text-success"></i> Защищённая оплата</h2>
+
+        <!-- Информация о безопасности -->
+        <div class="alert alert-success">
+            <i class="bi bi-lock-fill"></i> <strong>Данные транзакции защищены:</strong>
+            ID транзакции сохраняется в БД в зашифрованном виде (алгоритм Fernet/AES-128).
+            Сумма проверяется на сервере — подмена через браузер невозможна.
+        </div>
+
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted">Детали урока</h6>
+                <p class="mb-1"><strong>Преподаватель:</strong> {{ lesson.tutor.email }}</p>
+                <p class="mb-1"><strong>Дата:</strong> {{ lesson.date.strftime('%d.%m.%Y %H:%M') }}</p>
+                <p class="mb-0"><strong>Сумма к оплате:</strong>
+                    <span class="badge bg-success fs-6">{{ amount }} ₽</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    {{ form.hidden_tag() }}
+                    <!-- Сумма скрыта и берётся с сервера, но проверяется снова при POST -->
+                    <input type="hidden" name="amount" value="{{ amount }}">
+                    <p class="text-muted small mb-3">
+                        Нажимая «Оплатить», вы подтверждаете списание
+                        <strong>{{ amount }} ₽</strong> с вашего счёта.
+                    </p>
+                    <button type="submit" class="btn btn-success w-100 btn-lg">
+                        <i class="bi bi-credit-card"></i> Оплатить {{ amount }} ₽
+                    </button>
+                </form>
+            </div>
+        </div>
+        <a href="{{ url_for('calendar') }}" class="btn btn-link mt-2">← Отмена</a>
+    </div>
+</div>
+{% endblock %}

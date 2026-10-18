@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Панель администратора - TutorPlatform{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-shield-lock-fill text-warning"></i> Панель администратора</h2>
+
+<!-- Пользователи -->
+<h4 class="mt-4 mb-3"><i class="bi bi-people"></i> Пользователи ({{ users|length }})</h4>
+<div class="table-responsive mb-5">
+    <table class="table table-hover table-sm">
+        <thead class="table-dark">
+            <tr><th>#</th><th>Email</th><th>Роль</th><th>Создан</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.email }}</td>
+                <td><span class="badge {% if u.role=='admin' %}bg-danger{% elif u.role=='tutor' %}bg-primary{% else %}bg-secondary{% endif %}">{{ u.role }}</span></td>
+                <td>{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Отзывы с возможностью удаления (модерация XSS) -->
+<h4 class="mb-3"><i class="bi bi-star-half"></i> Отзывы ({{ reviews|length }})</h4>
+<div class="table-responsive mb-5">
+    <table class="table table-hover table-sm">
+        <thead class="table-dark">
+            <tr><th>#</th><th>Студент → Репетитор</th><th>Оценка</th><th>Комментарий</th><th>Действие</th></tr>
+        </thead>
+        <tbody>
+            {% for r in reviews %}
+            <tr>
+                <td>{{ r.id }}</td>
+                <td>{{ r.student_user.email }} → {{ r.tutor.email }}</td>
+                <td>{{ r.rating }} / 5</td>
+                <td style="max-width:250px; overflow:hidden; text-overflow:ellipsis;">{{ r.comment }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('delete_review', review_id=r.id) }}"
+                          onsubmit="return confirm('Удалить отзыв?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Транзакции -->
+<h4 class="mb-3"><i class="bi bi-credit-card"></i> Платёжные транзакции ({{ payments|length }})</h4>
+<div class="table-responsive">
+    <table class="table table-hover table-sm">
+        <thead class="table-dark">
+            <tr><th>#</th><th>Плательщик</th><th>Сумма</th><th>Статус</th><th>ID транзакции</th><th>Дата</th></tr>
+        </thead>
+        <tbody>
+            {% for p in payments %}
+            <tr>
+                <td>{{ p.id }}</td>
+                <td>{{ p.payer.email }}</td>
+                <td>{{ p.amount }} ₽</td>
+                <td>
+                    <span class="badge {% if p.status=='paid' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                        {{ p.status }}
+                    </span>
+                </td>
+                <td>
+                    <code class="small">
+                        <!-- ID расшифровывается только для отображения администратору -->
+                        {{ (p.transaction_ref or '—')[:16] }}...
+                    </code>
+                </td>
+                <td>{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
