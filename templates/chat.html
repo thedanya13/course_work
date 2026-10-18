@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Чат - TutorPlatform{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-chat-dots-fill text-primary"></i> Чат по уроку</h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('video_call', lesson_id=lesson.id) }}" class="btn btn-success btn-sm">
+            <i class="bi bi-camera-video"></i> Видео
+        </a>
+        <a href="{{ url_for('calendar') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+</div>
+
+<!-- Защита от XSS: пояснение для читающего код -->
+<!-- Сообщения сохраняются в БД уже очищенными через bleach.clean().
+     В шаблоне используется {{ msg.content }} (автоэкранирование Jinja2).
+     Двойная защита: серверная (bleach) + шаблонная (Jinja2 escape). -->
+
+<div class="card shadow-sm" style="height: 480px; display: flex; flex-direction: column;">
+    <div class="card-header bg-primary text-white">
+        Участники: {{ lesson.tutor.email }} ↔ {{ lesson.student.email }}
+    </div>
+
+    <!-- Лента сообщений -->
+    <div class="card-body overflow-auto flex-grow-1 p-3" id="messages-container">
+        {% if messages %}
+            {% for msg in messages %}
+            <div class="mb-3 {% if msg.sender_id == current_user.id %}text-end{% endif %}">
+                <div class="d-inline-block p-2 px-3 rounded-3
+                    {% if msg.sender_id == current_user.id %}bg-primary text-white{% else %}bg-light{% endif %}"
+                    style="max-width: 70%; word-break: break-word;">
+                    {# Jinja2 автоматически экранирует {{ msg.content }} — XSS-теги не выполнятся #}
+                    {{ msg.content }}
+                </div>
+                <div class="text-muted small mt-1">
+                    {{ msg.sender.email }} · {{ msg.sent_at.strftime('%H:%M') }}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted text-center mt-5">Сообщений пока нет. Начните диалог!</p>
+        {% endif %}
+    </div>
+
+    <!-- Форма отправки -->
+    <div class="card-footer bg-white">
+        <form method="post" action="{{ url_for('chat', lesson_id=lesson.id) }}">
+            {{ form.hidden_tag() }}
+            <div class="input-group">
+                {{ form.content(class="form-control", rows=1,
+                    placeholder="Введите сообщение...", id="msg-input") }}
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </div>
+            {% for error in form.content.errors %}
+                <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Автоскролл к последнему сообщению
+    const mc = document.getElementById('messages-container');
+    mc.scrollTop = mc.scrollHeight;
+</script>
+{% endblock %}
