@@ -69,5 +69,34 @@ def tutors():
         .all()
     return render_template('tutors.html', tutors=tutors_list)
 
+from flask import abort
+
+@app.route('/admin')
+@login_required
+def admin_panel():
+    if current_user.role != 'admin':
+        abort(403) 
+    return "<h1>Админская панель. Доступ разрешен!</h1>"
+
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    
+    user_profile = TutorProfile.query.filter_by(user_id=current_user.id).first()
+    
+    if request.method == 'POST':
+        new_bio = request.form.get('bio')
+        if user_profile:
+            user_profile.bio = new_bio
+        else:
+            user_profile = TutorProfile(user_id=current_user.id, subject='Тест', hourly_rate=0, bio=new_bio)
+            db.session.add(user_profile)
+        db.session.commit()
+        flash('Биография обновлена', 'success')
+        return redirect(url_for('profile'))
+        
+    return render_template('profile.html', profile=user_profile)
+
 if __name__ == '__main__':
     app.run(debug=True)
