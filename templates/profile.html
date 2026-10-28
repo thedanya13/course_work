@@ -1,29 +1,94 @@
 {% extends "base.html" %}
-{% block title %}Мой профиль{% endblock %}
+{% block title %}Мой профиль - TutorPlatform{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <h3>Редактирование профиля</h3>
-                <p class="text-muted">Попробуйте ввести XSS-скрипт в поле "О себе"</p>
-                
-                <form method="POST">
+        <!-- Информация об аккаунте и текущей сессии -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-person-badge"></i> Мой профиль</h5>
+                <span class="badge {% if current_user.role == 'owner' %}bg-warning text-dark{% elif current_user.role == 'admin' %}bg-danger{% elif current_user.role == 'tutor' %}bg-info text-dark{% else %}bg-light text-dark{% endif %}">
+                    Роль: {{ current_user.role }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted">Email:</div>
+                    <div class="col-sm-8 fw-bold">{{ current_user.email }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted">Дата регистрации:</div>
+                    <div class="col-sm-8">{{ current_user.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                </div>
+
+                {% if current_session %}
+                <hr>
+                <h6 class="text-secondary"><i class="bi bi-shield-check text-success"></i> Параметры текущей сессии (токен на 5 мин):</h6>
+                <div class="row mb-2">
+                    <div class="col-sm-4 text-muted">Токен авторизации:</div>
+                    <div class="col-sm-8"><code class="text-break">{{ current_session.token }}</code></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-4 text-muted">Время выдачи:</div>
+                    <div class="col-sm-8">{{ current_session.created_at.strftime('%H:%M:%S') }} (UTC)</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-4 text-muted">Истекает в:</div>
+                    <div class="col-sm-8">{{ current_session.expires_at.strftime('%H:%M:%S') }} (UTC)</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-4 text-muted">Осталось:</div>
+                    <div class="col-sm-8"><span class="badge bg-warning text-dark">{{ current_session.remaining_str }}</span></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Смена собственного пароля -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-key-fill text-warning"></i> Смена пароля</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile_change_password') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
-                        <label class="form-label">Email:</label>
-                        <input type="text" class="form-control" value="{{ current_user.email }}" disabled>
+                        <label class="form-label">Текущий пароль:</label>
+                        <input type="password" name="old_password" class="form-control" required placeholder="Введите текущий пароль">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Новый пароль:</label>
+                        <input type="password" name="new_password" class="form-control" required minlength="6" placeholder="Минимум 6 символов">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Подтверждение нового пароля:</label>
+                        <input type="password" name="confirm_password" class="form-control" required placeholder="Повторите новый пароль">
+                    </div>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check2-circle"></i> Сменить пароль</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Редактирование профиля (биография) -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Редактирование информации "О себе"</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Попробуйте ввести XSS-скрипт в поле "О себе" для проверки очистки через Bleach</p>
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="update_bio" value="1">
                     <div class="mb-3">
                         <label class="form-label">О себе (Био):</label>
                         <textarea name="bio" class="form-control" rows="4">{{ profile.bio if profile else '' }}</textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Сохранить биографию</button>
                 </form>
 
                 <hr>
-                <h5>Как это отображается на сайте:</h5>
-                <div class="border p-3 bg-light">
+                <h6>Как это отображается на сайте (после санитизации Bleach):</h6>
+                <div class="border p-3 bg-light rounded">
                     {{ profile.bio if profile else 'Биография пуста' }}
                 </div>
             </div>

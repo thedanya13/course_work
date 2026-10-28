@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import (StringField, PasswordField, SubmitField, TextAreaField,
-                     IntegerField, FloatField, DateTimeLocalField)
-from wtforms.validators import DataRequired, Email, Length, NumberRange, Optional
+                     IntegerField, FloatField, DateTimeLocalField, SelectField)
+from wtforms.validators import DataRequired, Email, Length, NumberRange, Optional, EqualTo
 
 
 class RegisterForm(FlaskForm):
@@ -48,3 +48,28 @@ class PaymentForm(FlaskForm):
     """Форма оплаты урока. Сумма дополнительно проверяется на сервере."""
     amount = FloatField('Сумма (₽)', validators=[DataRequired()])
     submit = SubmitField('Оплатить')
+
+
+class UserChangePasswordForm(FlaskForm):
+    """Форма смены собственного пароля пользователем в профиле."""
+    old_password = PasswordField('Текущий пароль', validators=[DataRequired()])
+    new_password = PasswordField('Новый пароль', validators=[DataRequired(), Length(min=6, message='Пароль должен содержать не менее 6 символов')])
+    confirm_password = PasswordField('Подтверждение пароля', validators=[DataRequired(), EqualTo('new_password', message='Пароли должны совпадать')])
+    submit = SubmitField('Сменить пароль')
+
+
+class AdminChangePasswordForm(FlaskForm):
+    """Форма смены пароля администратором / овнером."""
+    new_password = PasswordField('Новый пароль', validators=[DataRequired(), Length(min=6, message='Пароль должен содержать не менее 6 символов')])
+    submit = SubmitField('Сохранить пароль')
+
+
+class ChangeRoleForm(FlaskForm):
+    """Форма смены роли пользователя (доступно только супер-админу / овнеру)."""
+    role = SelectField('Новая роль', choices=[
+        ('student', 'Студент'),
+        ('tutor', 'Преподаватель'),
+        ('admin', 'Администратор'),
+        ('owner', 'Супер-админ (Овнер)')
+    ], validators=[DataRequired()])
+    submit = SubmitField('Сохранить роль')

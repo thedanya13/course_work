@@ -3,3 +3,7 @@ __pycache__/
 .env
 *.db
 instance/
+credentials.txt
+Course_work/
+Practica/
+Statyi/

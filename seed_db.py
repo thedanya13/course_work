@@ -15,8 +15,21 @@ def seed_database():
         
         print("🌱 Начинаем генерацию данных...")
         
+        # ── Фиксированные учетные записи для демонстрации и тестирования ──
+        fixed_users = [
+            ('owner@tutor.ru', 'owner123', 'owner', '+79991110001'),
+            ('admin@tutor.ru', 'admin123', 'admin', '+79991110002'),
+            ('tutor1@tutor.ru', 'tutor123', 'tutor', '+79991110003'),
+            ('student1@tutor.ru', 'student123', 'student', '+79991110004'),
+        ]
         
         users = []
+        for email, pwd, role, phone in fixed_users:
+            u = User(email=email, role=role, phone=phone)
+            u.set_password(pwd)
+            db.session.add(u)
+            users.append(u)
+
         for i in range(100):
             user = User(
                 email=fake.email(),
@@ -28,7 +41,7 @@ def seed_database():
             db.session.add(user)
         
         db.session.commit()
-        print(f"✅ Создано {len(users)} пользователей")
+        print(f"✅ Создано {len(users)} пользователей (включая owner, admin, tutor1, student1)")
         
         
         tutors = [u for u in users if u.role == 'tutor']

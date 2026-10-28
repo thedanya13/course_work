@@ -1,15 +1,22 @@
+from datetime import datetime, timedelta, timezone
 import secrets
 import bleach
-from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
 from extensions import db, csrf
 import models
-from models import User, TutorProfile, Lesson, Review, Chat, ChatMessage, Payment
+from models import User, TutorProfile, Lesson, Review, Chat, ChatMessage, Payment, UserSession
 from forms import (
     RegisterForm, LoginForm, ReviewForm, ChatMessageForm,
-    BookLessonForm, SearchForm, PaymentForm
+    BookLessonForm, SearchForm, PaymentForm,
+    UserChangePasswordForm, AdminChangePasswordForm, ChangeRoleForm
 )
+
+
+# Стартовые системные учетные записи:
+# Owner (Супер-админ): owner@tutor.ru / owner123
+# Admin (Администратор): admin@tutor.ru / admin123
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -25,8 +32,95 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+def ensure_system_accounts():
+    """Гарантирует существование стартовых учетных записей (owner, admin, tutor1, student1)."""
+    owner = User.query.filter_by(email='owner@tutor.ru').first()
+    if not owner:
+        owner = User(email='owner@tutor.ru', role='owner', phone='+79991110001')
+        owner.set_password('owner123')
+        db.session.add(owner)
+    elif owner.role != 'owner':
+        owner.role = 'owner'
+
+    admin = User.query.filter_by(email='admin@tutor.ru').first()
+    if not admin:
+        admin = User(email='admin@tutor.ru', role='admin', phone='+79991110002')
+        admin.set_password('admin123')
+        db.session.add(admin)
+    elif admin.role not in ('admin', 'owner'):
+        admin.role = 'admin'
+
+    tutor1 = User.query.filter_by(email='tutor1@tutor.ru').first()
+    if not tutor1:
+        tutor1 = User(email='tutor1@tutor.ru', role='tutor', phone='+79991110003')
+        tutor1.set_password('tutor123')
+        db.session.add(tutor1)
+        db.session.flush()
+        prof = TutorProfile(user_id=tutor1.id, subject='Математика и Информатика', hourly_rate=1500, bio='Опытный преподаватель высшей математики.')
+        db.session.add(prof)
+
+    student1 = User.query.filter_by(email='student1@tutor.ru').first()
+    if not student1:
+        student1 = User(email='student1@tutor.ru', role='student', phone='+79991110004')
+        student1.set_password('student123')
+        db.session.add(student1)
+
+    db.session.commit()
+
+
 with app.app_context():
     db.create_all()
+    ensure_system_accounts()
+
+
+# ─────────────────────────────────────────────
+# ПРОВЕРКА СЕССИЙ С ТОКЕНОМ НА 5 МИНУТ
+# ─────────────────────────────────────────────
+@app.before_request
+def validate_session():
+    """
+    Проверяет валидность токена сессии:
+    1. Токен должен присутствовать в сессии.
+    2. Сессия должна существовать в БД и быть активной (is_active=True).
+    3. Время жизни токена — ровно 5 минут. При истечении или отзыве пользователь разлогинивается.
+    """
+    if request.endpoint in ('static', 'logout', 'login', 'register'):
+        return
+
+    if current_user.is_authenticated:
+        token = session.get('auth_token')
+        if not token:
+            logout_user()
+            session.pop('auth_token', None)
+            flash('Сессия авторизации не найдена. Пожалуйста, войдите снова.', 'warning')
+            return redirect(url_for('login'))
+
+        user_sess = UserSession.query.filter_by(token=token).first()
+        if not user_sess or not user_sess.is_active:
+            logout_user()
+            session.pop('auth_token', None)
+            flash('Ваша сессия была завершена администратором или отозвана.', 'danger')
+            return redirect(url_for('login'))
+
+        if user_sess.is_expired():
+            user_sess.is_active = False
+            db.session.commit()
+            logout_user()
+            session.pop('auth_token', None)
+            flash('Срок действия токена авторизации (5 минут) истек. Пожалуйста, войдите снова.', 'info')
+            return redirect(url_for('login'))
+
+
+@app.context_processor
+def inject_session_info():
+    """Предоставляет информацию о текущей сессии и оставшемся времени в шаблоны."""
+    if current_user.is_authenticated:
+        token = session.get('auth_token')
+        if token:
+            user_sess = UserSession.query.filter_by(token=token, is_active=True).first()
+            if user_sess and not user_sess.is_expired():
+                return {'current_session': user_sess}
+    return {'current_session': None}
 
 
 # ─────────────────────────────────────────────
@@ -59,11 +153,37 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated and request.method == 'GET':
+        return redirect(url_for('index'))
     form = LoginForm()
     if form.validate_on_submit():
+        if current_user.is_authenticated:
+            logout_user()
+            session.pop('auth_token', None)
         user = User.query.filter_by(email=form.email.data).first()
         if user and user.check_password(form.password.data):
             login_user(user)
+            session.permanent = True
+            
+            # Генерация токена сессии с временем жизни ровно 5 минут
+            token = secrets.token_urlsafe(32)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            expires_at = now + timedelta(minutes=5)
+            
+            user_sess = UserSession(
+                user_id=user.id,
+                token=token,
+                created_at=now,
+                expires_at=expires_at,
+                is_active=True,
+                ip_address=request.headers.get('X-Forwarded-For', request.remote_addr),
+                user_agent=request.user_agent.string[:255] if request.user_agent else None
+            )
+            db.session.add(user_sess)
+            db.session.commit()
+            
+            session['auth_token'] = token
+            flash('Авторизация успешна! Сессия активна с токеном на 5 минут.', 'success')
             return redirect(url_for('index'))
         flash('Неверный email или пароль', 'danger')
     return render_template('login.html', form=form)
@@ -72,7 +192,15 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    token = session.get('auth_token')
+    if token:
+        user_sess = UserSession.query.filter_by(token=token).first()
+        if user_sess:
+            user_sess.is_active = False
+            db.session.commit()
     logout_user()
+    session.pop('auth_token', None)
+    flash('Вы вышли из системы.', 'info')
     return redirect(url_for('index'))
 
 
@@ -83,7 +211,9 @@ def logout():
 @login_required
 def profile():
     user_profile = TutorProfile.query.filter_by(user_id=current_user.id).first()
-    if request.method == 'POST':
+    password_form = UserChangePasswordForm()
+
+    if request.method == 'POST' and 'update_bio' in request.form:
         new_bio = request.form.get('bio', '')
         safe_bio = bleach.clean(new_bio, tags=[], strip=True)
         if user_profile:
@@ -94,7 +224,29 @@ def profile():
         db.session.commit()
         flash('Биография обновлена', 'success')
         return redirect(url_for('profile'))
-    return render_template('profile.html', profile=user_profile)
+
+    return render_template('profile.html', profile=user_profile, password_form=password_form)
+
+
+@app.route('/profile/change_password', methods=['POST'])
+@login_required
+def profile_change_password():
+    """Смена собственного пароля пользователем (или админом)."""
+    form = UserChangePasswordForm()
+    if form.validate_on_submit():
+        if not current_user.check_password(form.old_password.data):
+            flash('Неверный текущий пароль!', 'danger')
+            return redirect(url_for('profile'))
+
+        current_user.set_password(form.new_password.data)
+        db.session.commit()
+        flash('Ваш пароль успешно изменён!', 'success')
+        return redirect(url_for('profile'))
+
+    for error_list in form.errors.values():
+        for error in error_list:
+            flash(f'Ошибка: {error}', 'danger')
+    return redirect(url_for('profile'))
 
 
 # ─────────────────────────────────────────────
@@ -294,23 +446,195 @@ def pay_lesson(lesson_id):
 
 
 # ─────────────────────────────────────────────
-# ПАНЕЛЬ АДМИНИСТРАТОРА
+# ПАНЕЛЬ АДМИНИСТРАТОРА И ВЛАДЕЛЬЦА
 # ─────────────────────────────────────────────
 @app.route('/admin')
 @login_required
 def admin_panel():
-    if current_user.role != 'admin':
+    if current_user.role not in ('admin', 'owner'):
         abort(403)
-    users = User.query.all()
+    users = User.query.order_by(User.id).all()
     reviews_list = Review.query.order_by(Review.created_at.desc()).all()
     payments = Payment.query.order_by(Payment.created_at.desc()).all()
-    return render_template('admin.html', users=users, reviews=reviews_list, payments=payments)
+    sessions = UserSession.query.order_by(UserSession.created_at.desc()).limit(100).all()
+    return render_template(
+        'admin.html',
+        users=users,
+        reviews=reviews_list,
+        payments=payments,
+        sessions=sessions
+    )
+
+
+@app.route('/admin/users/<int:user_id>/logout', methods=['POST'])
+@login_required
+def admin_logout_user(user_id):
+    """
+    Принудительный разлогин пользователя администратором или овнером.
+    Админ может разлогинить только обычного пользователя (или себя).
+    Овнер может разлогинить любого пользователя (включая админов).
+    """
+    if current_user.role not in ('admin', 'owner'):
+        abort(403)
+
+    target_user = User.query.get_or_404(user_id)
+    if not current_user.can_logout_user(target_user):
+        flash('Администратор не может разлогинить других администраторов и владельца!', 'danger')
+        abort(403)
+
+    # Деактивируем все активные сессии пользователя
+    active_sessions = UserSession.query.filter_by(user_id=target_user.id, is_active=True).all()
+    session_count = len(active_sessions)
+    for s in active_sessions:
+        s.is_active = False
+    db.session.commit()
+
+    # Если разлогинен текущий пользователь
+    if target_user.id == current_user.id:
+        logout_user()
+        session.pop('auth_token', None)
+        flash('Вы вышли из системы.', 'info')
+        return redirect(url_for('login'))
+
+    flash(f'Пользователь {target_user.email} успешно разлогинен (завершено активных сессий: {session_count}).', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/sessions/<int:session_id>/revoke', methods=['POST'])
+@login_required
+def admin_revoke_session(session_id):
+    """Отзыв конкретной сессии по ID токена."""
+    if current_user.role not in ('admin', 'owner'):
+        abort(403)
+
+    sess = UserSession.query.get_or_404(session_id)
+    target_user = sess.user
+    if not current_user.can_logout_user(target_user):
+        flash('Недостаточно прав для отзыва сессии этого пользователя!', 'danger')
+        abort(403)
+
+    sess.is_active = False
+    db.session.commit()
+
+    if sess.token == session.get('auth_token'):
+        logout_user()
+        session.pop('auth_token', None)
+        flash('Ваша сессия была отозвана.', 'info')
+        return redirect(url_for('login'))
+
+    flash(f'Сессия #{sess.id} пользователя {target_user.email} успешно отозвана.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/users/<int:user_id>/change_password', methods=['POST'])
+@login_required
+def admin_change_password(user_id):
+    """
+    Смена пароля:
+    - Админ может менять пароль себе и обычным юзерам,
+      но НЕ может менять пароли других админов и овнера.
+    - Овнер может менять пароль кому угодно.
+    """
+    if current_user.role not in ('admin', 'owner'):
+        abort(403)
+
+    target_user = User.query.get_or_404(user_id)
+    if not current_user.can_manage_user(target_user):
+        flash('Администратор не может менять пароль другим администраторам и владельцу!', 'danger')
+        abort(403)
+
+    new_password = request.form.get('new_password', '').strip()
+    if len(new_password) < 6:
+        flash('Пароль должен содержать минимум 6 символов!', 'danger')
+        return redirect(url_for('admin_panel'))
+
+    target_user.set_password(new_password)
+
+    # При смене пароля отзываем существующие сессии целевого пользователя
+    if target_user.id == current_user.id:
+        current_token = session.get('auth_token')
+        UserSession.query.filter(UserSession.user_id == target_user.id, UserSession.token != current_token).update({'is_active': False})
+    else:
+        UserSession.query.filter_by(user_id=target_user.id).update({'is_active': False})
+
+    db.session.commit()
+    flash(f'Пароль для {target_user.email} успешно изменён.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def admin_delete_user(user_id):
+    """
+    Удаление учетной записи:
+    - Админ может удалять обычных юзеров, но НЕ может удалять других админов и овнера.
+    - Овнер может удалять любых пользователей и админов (кроме прямого удаления самого себя).
+    """
+    if current_user.role not in ('admin', 'owner'):
+        abort(403)
+
+    target_user = User.query.get_or_404(user_id)
+    if not current_user.can_delete_user(target_user):
+        flash('Недостаточно прав для удаления этой учетной записи!', 'danger')
+        abort(403)
+
+    email = target_user.email
+
+    # Каскадное удаление всех зависимых данных во избежание ошибок внешних ключей
+    UserSession.query.filter_by(user_id=target_user.id).delete()
+
+    lessons = Lesson.query.filter(
+        (Lesson.tutor_id == target_user.id) | (Lesson.student_id == target_user.id)
+    ).all()
+    for lesson in lessons:
+        Review.query.filter_by(lesson_id=lesson.id).delete()
+        Payment.query.filter_by(lesson_id=lesson.id).delete()
+        if lesson.chat:
+            ChatMessage.query.filter_by(chat_id=lesson.chat.id).delete()
+            db.session.delete(lesson.chat)
+        db.session.delete(lesson)
+
+    Review.query.filter((Review.student_id == target_user.id) | (Review.tutor_id == target_user.id)).delete()
+    ChatMessage.query.filter_by(sender_id=target_user.id).delete()
+    Payment.query.filter_by(payer_id=target_user.id).delete()
+    TutorProfile.query.filter_by(user_id=target_user.id).delete()
+
+    db.session.delete(target_user)
+    db.session.commit()
+
+    flash(f'Учетная запись {email} успешно удалена со всеми связанными данными.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/users/<int:user_id>/change_role', methods=['POST'])
+@login_required
+def admin_change_role(user_id):
+    """Смена роли пользователя — доступно исключительно супер-админу (овнеру)."""
+    if current_user.role != 'owner':
+        flash('Только супер-админ (владелец) имеет право изменять роли пользователей!', 'danger')
+        abort(403)
+
+    target_user = User.query.get_or_404(user_id)
+    new_role = request.form.get('role', '').strip()
+    if new_role not in ('student', 'tutor', 'admin', 'owner'):
+        flash('Недопустимая роль!', 'danger')
+        return redirect(url_for('admin_panel'))
+
+    if target_user.id == current_user.id and new_role != 'owner':
+        flash('Владелец не может понизить свою собственную роль.', 'warning')
+        return redirect(url_for('admin_panel'))
+
+    old_role = target_user.role
+    target_user.role = new_role
+    db.session.commit()
+    flash(f'Роль пользователя {target_user.email} успешно изменена с "{old_role}" на "{new_role}".', 'success')
+    return redirect(url_for('admin_panel'))
 
 
 @app.route('/admin/delete_review/<int:review_id>', methods=['POST'])
 @login_required
 def delete_review(review_id):
-    if current_user.role != 'admin':
+    if current_user.role not in ('admin', 'owner'):
         abort(403)
     review = Review.query.get_or_404(review_id)
     db.session.delete(review)
